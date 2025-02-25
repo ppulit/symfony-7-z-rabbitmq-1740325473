@@ -3,8 +3,10 @@
 namespace App\Service;
 
 use App\Entity\Client;
+use App\Entity\ImportHistory;
 use App\Repository\ClientsRepository;
 use App\Validator\CsvFileValidator;
+use Doctrine\ORM\EntityManagerInterface;
 use Monolog\Attribute\WithMonologChannel;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\Mercure\HubInterface;
@@ -16,6 +18,7 @@ class ImportClientsService
     public function __construct(
         private LoggerInterface $logger,
         private HubInterface $hub,
+        private EntityManagerInterface $entityManager,
         private CsvFileValidator $csvFileValidator,
         private CsvFileReader $csvFileReader,
         private ClientsRepository $clientsRepository,
@@ -29,16 +32,19 @@ class ImportClientsService
         $topic = 'progress_'.md5($fileName);
 
         $totalLines = $this->csvFileReader->countLinesInFile($filePath);
-        $processedLines = 0;
+        $processedRows = 0;
         $invalidRows = [];
+        $errorMessages = [];
         $batchSize = 1000;
         $clientsData = [];
 
         foreach ($this->csvFileReader->readFile($filePath, true) as $line) {
-            ++$processedLines;
+            ++$processedRows;
             if (!$this->csvFileValidator->validateRow($line)) {
-                $invalidRows[$processedLines] = $line;
-                $this->logger->error('Niepoprawny wiersz '.$processedLines.': '.json_encode($line));
+                $invalidRows[$processedRows] = $line;
+                $err = 'Niepoprawny wiersz '.$processedRows.': '.json_encode($line);
+                $errorMessages[] = $err;
+                $this->logger->error($err);
             } else {
                 list($id, $fullName, $email, $city) = $line;
 
@@ -49,13 +55,13 @@ class ImportClientsService
 
                 $clientsData[] = $client;
 
-                if (0 === $processedLines % $batchSize) {
+                if (0 === $processedRows % $batchSize) {
                     $this->clientsRepository->insertClientsBatch($clientsData);
                     $clientsData = [];
                 }
             }
 
-            $progress = ($processedLines / $totalLines) * 100;
+            $progress = ($processedRows / $totalLines) * 100;
             $progress = floor($progress);
 
             if (!isset($lastProgress) || $progress > $lastProgress) {
@@ -72,18 +78,22 @@ class ImportClientsService
 
         $this->clientsRepository->insertClientsBatch($clientsData);
 
-        $this->logger->info('Zakończono przetwarzanie '.$processedLines.' linii.');
-        $this->logger->info('Błędnych linii: '.count($invalidRows));
+        $this->logger->info('Zakończono przetwarzanie '.$processedRows.' wierszy.');
+        $this->logger->info('Błędnych wierszy: '.count($invalidRows));
 
         $update = new Update(
             $topic,
             json_encode([
                 'progress' => 100,
-                'totalLines' => $processedLines,
+                'totalRows' => $processedRows,
+                'successCount' => $processedRows - count($invalidRows),
                 'invalidRows' => count($invalidRows),
                 'errorRows' => $invalidRows,
             ])
         );
         $this->hub->publish($update);
+
+        $this->entityManager->persist(new ImportHistory($processedRows, count($invalidRows), 'Sukces', json_encode($errorMessages)));
+        $this->entityManager->flush();
     }
 }
