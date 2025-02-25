@@ -6,6 +6,7 @@ use App\Repository\ClientsRepository;
 use App\Service\CsvFileReader;
 use App\Service\ImportClientsService;
 use App\Validator\CsvFileValidator;
+use Doctrine\ORM\EntityManagerInterface;
 use Monolog\Logger;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Mercure\HubInterface;
@@ -15,6 +16,7 @@ class ImportClientsServiceTest extends TestCase
 {
     private $logger;
     private $hub;
+    private $entityManager;
     private $clientsRepository;
     private $csvFileValidator;
     private $csvFileReader;
@@ -24,6 +26,7 @@ class ImportClientsServiceTest extends TestCase
     {
         $this->logger = $this->createMock(Logger::class);
         $this->hub = $this->createMock(HubInterface::class);
+        $this->entityManager = $this->createMock(EntityManagerInterface::class);
         $this->clientsRepository = $this->createMock(ClientsRepository::class);
         $this->csvFileValidator = $this->createMock(CsvFileValidator::class);
         $this->csvFileReader = $this->createMock(CsvFileReader::class);
@@ -31,6 +34,7 @@ class ImportClientsServiceTest extends TestCase
         $this->importClientsService = new ImportClientsService(
             $this->logger,
             $this->hub,
+            $this->entityManager,
             $this->csvFileValidator,
             $this->csvFileReader,
             $this->clientsRepository,
