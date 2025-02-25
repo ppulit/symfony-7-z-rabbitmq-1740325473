@@ -3,13 +3,6 @@
 {% block stylesheets %}
     {{ parent() }}
 <style>
-    .container {
-        background-color: #FFFFFF;
-        padding: 20px;
-        margin-top: 20px;
-        max-width: 800px;
-    }
-
     #progress {
         width: 100%;
         background-color: #f3f3f3;
@@ -68,6 +61,8 @@
         <div id="report" class="alert alert-success" role="alert"></div>
     </div>
     <div id="error" class="alert alert-danger"></div>
+
+    <a href="{{ path('import_summary') }}" class="btn">Zobacz podsumowanie ostatniego importu</a>
 </div>
 {% endblock %}
 
@@ -129,7 +124,7 @@
         }
 
         function showReport(data) {
-            if (typeof data.totalLines === "undefined" || typeof data.invalidRows === "undefined") {
+            if (typeof data.totalRows === "undefined" || typeof data.invalidRows === "undefined") {
                 reportContainer.innerHTML = "<p>Brak szczegółowych danych o imporcie.</p>";
                 reportContainer.style.display = "block";
                 return;
@@ -137,16 +132,17 @@
 
             let reportHTML = `
             <h4>Import zakończony sukcesem!</h4>
-            <p><strong>Łączna liczba wierszy:</strong> ${data.totalLines}<br>
+            <p><strong>Łączna liczba wierszy:</strong> ${data.totalRows}<br>
+            <strong>Liczba zapisanych rekordów:</strong> ${data.successCount}<br>
             <strong>Liczba błędnych wierszy:</strong> ${data.invalidRows}</p>
         `;
 
             if (data.invalidRows > 0) {
-                reportHTML += `<h4>Błędne wiersze:</h4><ul>`;
+                reportHTML += `<divclass="alert alert-danger"><h4>Błędne wiersze:</h4><ul>`;
                 for (const [rowNumber, rowData] of Object.entries(data.errorRows)) {
                     reportHTML += `<li><strong>Wiersz ${rowNumber}:</strong> ${rowData.join(", ")}</li>`;
                 }
-                reportHTML += `</ul>`;
+                reportHTML += `</ul></div>`;
             }
 
             reportContainer.innerHTML = reportHTML;
