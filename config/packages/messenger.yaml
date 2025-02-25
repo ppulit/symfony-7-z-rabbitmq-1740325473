@@ -13,7 +13,11 @@ framework:
                     max_retries: 3
                     multiplier: 2
             failed: 'doctrine://default?queue_name=failed'
-            # sync: 'sync://'
+            import_clients:
+                dsn: '%env(RABBIT_TRANSPORT_DSN)%'
+                retry_strategy:
+                    max_retries: 3
+                    multiplier: 2
 
         default_bus: messenger.bus.default
 
@@ -24,6 +28,7 @@ framework:
             Symfony\Component\Mailer\Messenger\SendEmailMessage: async
             Symfony\Component\Notifier\Message\ChatMessage: async
             Symfony\Component\Notifier\Message\SmsMessage: async
+            App\Message\ImportClientsMessage: import_clients
 
             # Route your messages to the transports
             # 'App\Message\YourMessage': async
