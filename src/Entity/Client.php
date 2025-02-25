@@ -2,9 +2,10 @@
 
 namespace App\Entity;
 
+use App\Repository\ClientsRepository;
 use Doctrine\ORM\Mapping as ORM;
 
-#[ORM\Entity]
+#[ORM\Entity(repositoryClass: ClientsRepository::class)]
 class Client
 {
     #[ORM\Id]

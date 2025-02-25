@@ -3,8 +3,8 @@
 namespace App\Service;
 
 use App\Entity\Client;
+use App\Repository\ClientsRepository;
 use App\Validator\CsvFileValidator;
-use Doctrine\ORM\EntityManagerInterface;
 use Monolog\Attribute\WithMonologChannel;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\Mercure\HubInterface;
@@ -16,9 +16,9 @@ class ImportClientsService
     public function __construct(
         private LoggerInterface $logger,
         private HubInterface $hub,
-        private EntityManagerInterface $entityManager,
         private CsvFileValidator $csvFileValidator,
         private CsvFileReader $csvFileReader,
+        private ClientsRepository $clientsRepository,
     ) {
     }
 
@@ -31,7 +31,8 @@ class ImportClientsService
         $totalLines = $this->csvFileReader->countLinesInFile($filePath);
         $processedLines = 0;
         $invalidRows = [];
-        $batchSize = 10000;
+        $batchSize = 1000;
+        $clientsData = [];
 
         foreach ($this->csvFileReader->readFile($filePath, true) as $line) {
             ++$processedLines;
@@ -46,14 +47,12 @@ class ImportClientsService
                 $client->setEmail($email);
                 $client->setCity($city);
 
-                $this->entityManager->persist($client);
+                $clientsData[] = $client;
 
                 if (0 === $processedLines % $batchSize) {
-                    $this->entityManager->flush();
-                    $this->entityManager->clear();
+                    $this->clientsRepository->insertClientsBatch($clientsData);
+                    $clientsData = [];
                 }
-
-                $this->logger->info('Przetworzono wiersz '.$processedLines.': '.json_encode($line));
             }
 
             $progress = ($processedLines / $totalLines) * 100;
@@ -71,14 +70,16 @@ class ImportClientsService
             }
         }
 
-        $this->entityManager->flush();
-        $this->entityManager->clear();
+        $this->clientsRepository->insertClientsBatch($clientsData);
+
+        $this->logger->info('Zakończono przetwarzanie '.$processedLines.' linii.');
+        $this->logger->info('Błędnych linii: '.count($invalidRows));
 
         $update = new Update(
             $topic,
             json_encode([
                 'progress' => 100,
-                'totalLines' => $totalLines,
+                'totalLines' => $processedLines,
                 'invalidRows' => count($invalidRows),
                 'errorRows' => $invalidRows,
             ])

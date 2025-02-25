@@ -42,11 +42,10 @@ final class ClientsController extends AbstractController
                         $file->move($filesDirectory, $newFilename);
                     } catch (FileException $e) {
                         $logger->error($e->getMessage());
-                        $this->addFlash('error', $e->getMessage());
 
                         return new JsonResponse([
                             'success' => false,
-                            'message' => 'Wystąpił błąd podczas zapisu pliku.',
+                            'error' => 'Wystąpił błąd podczas zapisu pliku.',
                         ]);
                     }
 
@@ -56,8 +55,6 @@ final class ClientsController extends AbstractController
                             $newFilename
                         )
                     );
-
-                    $this->addFlash('success', 'Plik został wysłany do kolejki.');
 
                     $topic = 'progress_'.md5($newFilename);
 

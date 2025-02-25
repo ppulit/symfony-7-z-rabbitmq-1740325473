@@ -2,21 +2,20 @@
 
 namespace App\Tests\Service;
 
-use App\Service\ImportClientsService;
+use App\Repository\ClientsRepository;
 use App\Service\CsvFileReader;
-use App\Entity\Client;
+use App\Service\ImportClientsService;
 use App\Validator\CsvFileValidator;
-use Doctrine\ORM\EntityManagerInterface;
 use Monolog\Logger;
+use PHPUnit\Framework\TestCase;
 use Symfony\Component\Mercure\HubInterface;
 use Symfony\Component\Mercure\Update;
-use PHPUnit\Framework\TestCase;
 
 class ImportClientsServiceTest extends TestCase
 {
     private $logger;
     private $hub;
-    private $entityManager;
+    private $clientsRepository;
     private $csvFileValidator;
     private $csvFileReader;
     private $importClientsService;
@@ -25,16 +24,16 @@ class ImportClientsServiceTest extends TestCase
     {
         $this->logger = $this->createMock(Logger::class);
         $this->hub = $this->createMock(HubInterface::class);
-        $this->entityManager = $this->createMock(EntityManagerInterface::class);
+        $this->clientsRepository = $this->createMock(ClientsRepository::class);
         $this->csvFileValidator = $this->createMock(CsvFileValidator::class);
         $this->csvFileReader = $this->createMock(CsvFileReader::class);
 
         $this->importClientsService = new ImportClientsService(
             $this->logger,
             $this->hub,
-            $this->entityManager,
             $this->csvFileValidator,
-            $this->csvFileReader
+            $this->csvFileReader,
+            $this->clientsRepository,
         );
     }
 
@@ -43,16 +42,14 @@ class ImportClientsServiceTest extends TestCase
         $filePath = 'path/to/valid_file.csv';
         $fileName = 'valid_file.csv';
 
-        // Fikcyjne dane CSV
         $mockedData = [
             ['1', 'John Doe', 'john@example.com', 'City'],
-            ['2', 'Jane Smith', 'jane@example.com', 'Town']
+            ['2', 'Jane Smith', 'jane@example.com', 'Town'],
         ];
 
-        // Mockowanie metody readCsvFile, aby zwracała nasze dane w formie generatora
         $this->csvFileReader->method('countLinesInFile')->willReturn(count($mockedData));
         $this->csvFileReader->method('readFile')
-            ->willReturnCallback(function() use ($mockedData) {
+            ->willReturnCallback(function () use ($mockedData) {
                 foreach ($mockedData as $row) {
                     yield $row;
                 }
@@ -62,12 +59,8 @@ class ImportClientsServiceTest extends TestCase
             ->method('validateRow')
             ->willReturn(true);
 
-        $this->entityManager->expects($this->exactly(2))
-            ->method('persist')
-            ->with($this->isInstanceOf(Client::class));
-
-        $this->entityManager->expects($this->once())
-            ->method('flush');
+        $this->clientsRepository->expects($this->once())
+            ->method('insertClientsBatch');
 
         $this->hub->expects($this->exactly(3))
             ->method('publish')
@@ -81,17 +74,15 @@ class ImportClientsServiceTest extends TestCase
         $filePath = 'path/to/invalid_file.csv';
         $fileName = 'invalid_file.csv';
 
-        // Fikcyjne dane CSV z błędnymi wierszami
         $mockedData = [
-            ['1', 'John Doe', 'john@example.com', 'City'],          // poprawny wiersz
-            ['2', 'Jane Smith', 'invalid-email', 'Town'],           // niepoprawny email
-            ['3', '', 'jane@example.com', ''],                      // brak imienia i miasta
+            ['1', 'John Doe', 'john@example.com', 'City'],
+            ['2', 'Jane Smith', 'invalid-email', 'Town'],
+            ['3', '', 'jane@example.com', ''],
         ];
 
-        // Mockowanie metody readCsvFile, aby zwracała nasze dane w formie generatora
         $this->csvFileReader->method('countLinesInFile')->willReturn(count($mockedData));
         $this->csvFileReader->method('readFile')
-            ->willReturnCallback(function() use ($mockedData) {
+            ->willReturnCallback(function () use ($mockedData) {
                 foreach ($mockedData as $row) {
                     yield $row;
                 }
@@ -101,12 +92,8 @@ class ImportClientsServiceTest extends TestCase
             ->method('validateRow')
             ->willReturnOnConsecutiveCalls(true, false, false);
 
-        $this->entityManager->expects($this->once())
-            ->method('persist')
-            ->with($this->isInstanceOf(Client::class));
-
-        $this->entityManager->expects($this->once())
-            ->method('flush');
+        $this->clientsRepository->expects($this->once())
+            ->method('insertClientsBatch');
 
         $this->hub->expects($this->exactly(4))
         ->method('publish')
