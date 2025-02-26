@@ -4,6 +4,7 @@ namespace App\Controller;
 
 use App\Form\FileUploadType;
 use App\Message\ImportClientsMessage;
+use App\Repository\ImportHistoryRepository;
 use Psr\Log\LoggerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
@@ -74,6 +75,22 @@ final class ClientsController extends AbstractController
         return $this->render('clients/index.html.twig', [
             'controller_name' => 'ClientsController',
             'form' => $form->createView(),
+        ]);
+    }
+
+    #[Route('/clients/last-import-summary', name: 'import_summary')]
+    public function summary(ImportHistoryRepository $repository): Response
+    {
+        $lastImport = $repository->getLastImport();
+
+        return $this->render('clients/summary.html.twig', [
+            'lastImport' => $lastImport ? [
+                'processed' => $lastImport->getProcessed(),
+                'errors' => $lastImport->getErrors(),
+                'status' => $lastImport->getStatus(),
+                'errorMessages' => json_decode($lastImport->getErrorMessages(), true) ?? [],
+                'createdAt' => $lastImport->getCreatedAt(),
+            ] : null,
         ]);
     }
 }
